@@ -1,5 +1,8 @@
-#include <cstdio>   // Para usar printf (salida de texto)
+/* Ejercicio 1: Generador de números pseudoaleatorios con ESP32 */
+#include "SPIFFS.h"
 #include <cstdint>  // Para usar enteros de tamaño fijo como uint64_t
+
+void listAllFiles();
 
 //generador congruente  ---  xᵢ =(a*xᵢ₋₁ +c)  --  mod m
 class MiRandom {
@@ -41,26 +44,45 @@ public:
     }
 };
 
-int main() {
-    // Creamos un generador con semilla 12345
-    MiRandom generador(12345);
+// Creamos un generador global con semilla 12345
+MiRandom generador(12345);
+int contadorNumeros = 0;
+bool primeraRonda = true;
 
-    printf("Primera tanda de numeros:\n");
-    // Generamos 5 números aleatorios entre 0 y 1
-    for (int i = 0; i < 5; i++) {
-        double numero = generador.rand(0.0, 1.0);
-        printf("Numero aleatorio %d: %f\n", i + 1, numero);
+void setup(){
+    Serial.begin(115200);
+    pinMode(43, OUTPUT);
+    digitalWrite(43, HIGH);
+    
+    if(!SPIFFS.begin(true)){
+        Serial.println("Fail mounting FFat");
+        return;
     }
+    
+    Serial.println("=== Generador de numeros pseudoaleatorios ===");
+    Serial.println("Primera tanda de numeros:");
+}
 
-    // Reiniciamos el generador con otra semilla
-    generador.seed(9999);
-
-    printf("\nSegunda tanda de numeros (nueva semilla):\n");
-    // Generamos otros 5 números con la nueva semilla
-    for (int i = 0; i < 5; i++) {
+void loop(){
+    // Generación de números aleatorios
+    if (primeraRonda && contadorNumeros < 5) {
         double numero = generador.rand(0.0, 1.0);
-        printf("Numero aleatorio %d: %f\n", i + 1, numero);
+        Serial.printf("Numero aleatorio %d: %f\n", contadorNumeros + 1, numero);
+        contadorNumeros++;
+    } else if (primeraRonda && contadorNumeros == 5) {
+        // Reiniciamos el generador con otra semilla
+        generador.seed(9999);
+        Serial.println("\nSegunda tanda de numeros (nueva semilla):");
+        primeraRonda = false;
+        contadorNumeros = 0;
+    } else if (!primeraRonda && contadorNumeros < 5) {
+        double numero = generador.rand(0.0, 1.0);
+        Serial.printf("Numero aleatorio %d: %f\n", contadorNumeros + 1, numero);
+        contadorNumeros++;
+        
+        if (contadorNumeros == 5) {
+            Serial.println("\n=== Generacion completa ===");
+            listAllFiles();
+        }
     }
-
-    return 0; // Fin del programa
 }
