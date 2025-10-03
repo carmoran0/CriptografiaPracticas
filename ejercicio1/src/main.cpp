@@ -2,7 +2,6 @@
 #include "SPIFFS.h"
 #include <cstdint>  // Para usar enteros de tamaño fijo como uint64_t
 
-void listAllFiles();
 
 //generador congruente  ---  xᵢ =(a*xᵢ₋₁ +c)  --  mod m
 class MiRandom {
@@ -19,9 +18,9 @@ public:
     //a - 1 debe ser divisible entre todos los factores primos de m
     //a - 1 debe ser múltiplo de 2
     MiRandom(uint64_t semilla = 1) {
-        multiplicador = 9;              // valor típico usado en LCG
-        incremento = 1013904223;              // valor típico usado en LCG
-        modulo = (1ULL << 32);                //2^32, desplazamos un bit 32 veces
+        multiplicador = 1103515245;              // valor típico usado en LCG
+        incremento = 123456;              // valor típico usado en LCG
+        modulo = (1ULL << 31);                //2^31, desplazamos un bit 31 veces
         estado = semilla;                     // guardamos la semilla inicial
     }
 
@@ -44,8 +43,8 @@ public:
     }
 };
 
-// Creamos un generador global con semilla 12345
-MiRandom generador(12345);
+// Creamos un generador global con semilla 
+MiRandom generador(903699);
 int contadorNumeros = 0;
 bool primeraRonda = true;
 
@@ -71,8 +70,8 @@ void loop(){
         contadorNumeros++;
     } else if (primeraRonda && contadorNumeros == 5) {
         // Reiniciamos el generador con otra semilla
-        generador.seed(9999);
-        Serial.println("\nSegunda tanda de numeros (nueva semilla):");
+        generador.seed(3102025);  // Nueva semilla
+        Serial.println("\nSegunda tanda de numeros (con semilla 3102025):");
         primeraRonda = false;
         contadorNumeros = 0;
     } else if (!primeraRonda && contadorNumeros < 5) {
@@ -82,7 +81,6 @@ void loop(){
         
         if (contadorNumeros == 5) {
             Serial.println("\n=== Generacion completa ===");
-            listAllFiles();
         }
     }
 }
