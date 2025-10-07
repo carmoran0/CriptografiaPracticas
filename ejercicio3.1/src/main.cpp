@@ -119,8 +119,12 @@ public:
     }
 };
 
-// Ejemplo de uso
-Geffe* geffe = nullptr;
+
+struct LFSRKey {
+    uint8_t size;
+    uint32_t state;
+    uint32_t feedback;
+};
 
 void setup() {
     Serial.begin(115200);
@@ -128,41 +132,47 @@ void setup() {
     
     Serial.println("=== Generador de Geffe ===\n");
     
-    // Crear una clave de ejemplo de 27 bytes
+    
+    //creamos los LFSRKeys que necesitamos
+    LFSRKey k0 = { 8,  0x12345678, 0x0000001D };
+    LFSRKey k1 = { 10, 0xABCDEF01, 0x00000205 };
+    LFSRKey k2 = { 11, 0x98765432, 0x00000403 };
+
+    //para colocar todo en bytes usamos la funcion memcpy(destino, origen, cantidad_de_bytes)
     uint8_t key[27];
-    
-    
-    /*
-    key[0] = 8;                    // Tamaño de LFSR0 = 8 bits
-    key[1..4] = 0x12345678;        // Estado inicial o semilla
-    key[5..8] = 0x0000001D;        // Feedback, qué bits del estado se usarán para calcular el nuevo bit que entra al registro
-    */
-    // LFSR0: tamaño 8, estado inicial 0x12345678, feedback 0x0000001D
-    key[0] = 8;                    // Tamaño: 8 bits 00001000
-    key[1] = 0x78; key[2] = 0x56;  // Estado inicial
-    key[3] = 0x34; key[4] = 0x12;
-    key[5] = 0x1D; key[6] = 0x00;  // Feedback
-    key[7] = 0x00; key[8] = 0x00;
-    
-    // LFSR1: tamaño 10, estado inicial 0xABCDEF01, feedback 0x00000205
-    key[9] = 10;                   // Tamaño: 10 bits
-    key[10] = 0x01; key[11] = 0xEF;
-    key[12] = 0xCD; key[13] = 0xAB;
-    key[14] = 0x05; key[15] = 0x02;
-    key[16] = 0x00; key[17] = 0x00;
-    
-    // LFSR2: tamaño 11, estado inicial 0x98765432, feedback 0x00000403
-    key[18] = 11;                  // Tamaño: 11 bits
-    key[19] = 0x32; key[20] = 0x54;
-    key[21] = 0x76; key[22] = 0x98;
-    key[23] = 0x03; key[24] = 0x04;
-    key[25] = 0x00; key[26] = 0x00;
-    
+
+    auto write32le = [](uint8_t* dst, uint32_t v) {
+    dst[0] = (uint8_t)(v & 0xFF);
+    dst[1] = (uint8_t)((v >> 8) & 0xFF);
+    dst[2] = (uint8_t)((v >> 16) & 0xFF);
+    dst[3] = (uint8_t)((v >> 24) & 0xFF);
+    };
+
+    // k0 en offset 0
+    key[0] = k0.size;
+    write32le(&key[1], k0.state); // bytes 1..4
+    write32le(&key[5], k0.feedback); // bytes 5..8
+
+    // k1 en offset 9
+    key[9] = k1.size;
+    write32le(&key[10], k1.state); // bytes 10..13
+    write32le(&key[14], k1.feedback); // bytes 14..17
+
+    // k2 en offset 18
+    key[18] = k2.size;
+    write32le(&key[19], k2.state); // bytes 19..22
+    write32le(&key[23], k2.feedback); // bytes 23..26
+
+
+    Geffe* geffe = nullptr;
+
     // Crear el generador de Geffe
     geffe = new Geffe(key);
     
+
     // Generar y mostrar primeros 32 bits
     Serial.println("Primeros 32 bits generados:");
+
     for (int i = 0; i < 32; i++) {
         Serial.print(geffe->next() ? "1" : "0");
         if ((i + 1) % 8 == 0) Serial.print(" ");
