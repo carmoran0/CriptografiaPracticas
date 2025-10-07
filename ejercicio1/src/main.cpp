@@ -38,6 +38,7 @@ public:
         // Normalizamos el resultado a un número entre 0 y 1
         double normalizado = (double)estado / (double)modulo;
 
+        
         // Escalamos el valor al rango [min, max]
         return min + normalizado * (max - min);
     }
