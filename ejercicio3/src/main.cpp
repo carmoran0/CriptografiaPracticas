@@ -10,29 +10,37 @@ private:
     uint8_t size;             // Tamaño del registro (número de bits)
     uint32_t mask;            // Máscara para el tamaño del registro
 
+    
 public:
-    LFSR() : state(0), feedback(0), size(0), mask(0) {}
+    LFSR() : state(0), feedback(0), size(0), mask(0) {} //se inician estos parametros a 0
+    /*Es como escribir:
+    LFSR() {
+    state = 0;
+    feedback = 0;
+    size = 0;
+    mask = 0;
+    }*/ 
     
     void init(uint32_t initialState, uint32_t feedbackBits, uint8_t registerSize) {
         size = registerSize;
         state = initialState & ((1UL << size) - 1);  // Aplicar máscara según tamaño
         feedback = feedbackBits;
-        mask = (1UL << size) - 1;
+        mask = (1UL << size) - 1; //asegurarse de que el estado inicial tiene solo los bits necesarios ((1UL << size) - 1
     }
     
-    // Genera el siguiente bit
+    // Genera el siguiente bit y actualiza el estado
     bool next() {
         // Calcular bit de salida (bit menos significativo)
         bool outputBit = state & 1;
         
         // Calcular bit de realimentación usando XOR de los bits marcados
         uint32_t feedbackBit = 0;
-        uint32_t temp = state & feedback;
+        uint32_t temp = state & feedback; //seleccion de los bits que se usan
         
         // Contar paridad (XOR de todos los bits activos)
         while (temp) {
             feedbackBit ^= (temp & 1);
-            temp >>= 1;
+            temp >>= 1; //desplazamiento hacia la derecha
         }
         
         // Desplazar y añadir bit de realimentación
@@ -42,7 +50,7 @@ public:
         return outputBit;
     }
     
-    uint32_t getState() const { return state; }
+    uint32_t getState() const { return state; }//devuelve el valor actual de estado interno
 };
 
 // Clase del generador de Geffe
@@ -53,9 +61,10 @@ private:
     // Decodificar 9 bytes en parámetros del LFSR
     void decodeLFSRKey(const uint8_t* key, uint8_t& size, uint32_t& state, uint32_t& feedback) {
         // Primer byte: bits 4-0 contienen el tamaño (bits 7-5 se ignoran)
-        size = key[0] & 0x1F;  // 5 bits menos significativos
+        size = key[0] & 0x1F;  //5 bits menos significativos se quedan como 1, el resto se quedan en 0
         
         // Siguiente 4 bytes: estado inicial (little-endian)
+        //se hace esto para combinar los bytes y asignarselos a una variable de 32 bits
         state = ((uint32_t)key[1]) |
                 ((uint32_t)key[2] << 8) |
                 ((uint32_t)key[3] << 16) |
