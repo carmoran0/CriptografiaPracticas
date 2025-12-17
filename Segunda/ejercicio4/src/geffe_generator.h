@@ -1,72 +1,91 @@
 //cifrador de archivos usando generador geffe
 //procesa archivos de 1mb en tarjeta sd
+//Este archivo .h contiene la "receta" para crear números aleatorios con Geffe
+//Se puede usar en otros programas incluyendo este archivo
 
-#ifndef GEFFE_GENERATOR_H
-#define GEFFE_GENERATOR_H
+#ifndef GEFFE_GENERATOR_H  //Esto evita que el archivo se incluya dos veces
+#define GEFFE_GENERATOR_H  //Si no está definido, lo define ahora
 
-#include <Arduino.h>
+#include <Arduino.h>  //Biblioteca básica para trabajar en ESP32
 
 //==================== LFSR ====================
+//LFSR = Linear Feedback Shift Register (Registro de Desplazamiento con Realimentación Lineal)
+//Es como una máquina pequeña que genera números "casi aleatorios"
+//Funciona tomando bits de un número y mezclándolos de manera matemática
 class LFSR {
 private:
-    uint32_t state;          //estado actual del registro
-    uint32_t feedback;       //máscara de bits de realimentación
-    uint8_t size;            //tamaño del registro en bits
-    uint32_t mask;           //máscara para limitar tamaño
+    uint32_t state;          //Estado actual del registro - el número que tenemos ahora
+    uint32_t feedback;       //Máscara de bits de realimentación - qué bits se mezclan
+    uint8_t size;            //Tamaño del registro en bits - cuántos bits caben (ej: 8, 10, 11)
+    uint32_t mask;           //Máscara para limitar tamaño - para no pasarse de bits
 
 public:
-    //constructor por defecto
+    //Constructor por defecto - pone todo en cero al principio
     LFSR() : state(0), feedback(0), size(0), mask(0) {}
     
-    //inicializa el LFSR con parámetros específicos
+    //Inicializa el LFSR con parámetros específicos
+    //Como darle instrucciones a la máquina para que funcione
     void init(uint32_t initialState, uint32_t feedbackBits, uint8_t registerSize) {
-        size = registerSize;
-        //aplica máscara para mantener solo bits válidos
+        size = registerSize;  //Guardamos el tamaño (ej: 8 bits)
+        //Aplica máscara para mantener solo bits válidos
+        //Si size=8, (1UL << 8) = 256, -1 = 255 (11111111 en binario)
         state = initialState & ((1UL << size) - 1);
-        feedback = feedbackBits;
-        mask = (1UL << size) - 1;
+        feedback = feedbackBits;  //Guardamos cómo se mezclan los bits
+        mask = (1UL << size) - 1; //Creamos la máscara para este tamaño
     }
     
-    //genera el siguiente bit y actualiza el estado
+    //Genera el siguiente bit (0 o 1) y actualiza el estado de la máquina
+    //Es como pedirle a la máquina que produzca un nuevo número
     bool next() {
-        //bit de salida es el menos significativo
+        //Bit de salida es el menos significativo (el de más a la derecha)
         bool outputBit = state & 1;
         
-        //calcula bit de realimentación usando XOR
+        //Calcula bit de realimentación usando XOR
+        //XOR es como "es diferente": 0⊕0=0, 0⊕1=1, 1⊕0=1, 1⊕1=0
         uint32_t feedbackBit = 0;
-        uint32_t temp = state & feedback; //selecciona bits de realimentación
+        uint32_t temp = state & feedback; //Selecciona solo los bits marcados para realimentación
         
-        //XOR de todos los bits seleccionados
+        //XOR de todos los bits seleccionados, uno por uno
+        //Es como sumar los bits pero solo si son diferentes
         while (temp) {
-            feedbackBit ^= (temp & 1);
-            temp >>= 1;
+            feedbackBit ^= (temp & 1); //Hace XOR con el bit actual
+            temp >>= 1; //Pasa al siguiente bit moviendo a la derecha
         }
         
-        //desplazar y añadir bit de realimentación al inicio
+        //Desplazar y añadir bit de realimentación al inicio
+        //Mueve todos los bits a la derecha y mete el nuevo al principio
         state = (state >> 1) | (feedbackBit << (size - 1));
-        state &= mask; //aplica máscara para mantener tamaño
+        state &= mask; //Aplica máscara para mantener tamaño - corta bits sobrantes
         
-        return outputBit;
+        return outputBit; //Devuelve el bit que sacamos al principio
     }
 };
 
 //==================== GEFFE ====================
+//Generador de Geffe - combina 3 LFSRs para ser más seguro
+//Es como tener 3 máquinas pequeñas trabajando juntas
+//La fórmula hace que sea difícil adivinar el resultado
 class Geffe {
 private:
-    LFSR lfsr0, lfsr1, lfsr2; //tres LFSRs independientes
+    LFSR lfsr0, lfsr1, lfsr2; //Tres LFSRs independientes - las 3 máquinas
     
-    //decodifica 9 bytes en parámetros del LFSR
+    //Decodifica 9 bytes en parámetros del LFSR
+    //Convierte bytes guardados en configuración para una máquina
     void decodeLFSRKey(const uint8_t* key, uint8_t& size, uint32_t& state, uint32_t& feedback) {
-        //primer byte: tamaño en bits (5 bits menos significativos)
+        //Primer byte: tamaño en bits (5 bits menos significativos)
+        //0x1F = 00011111 en binario - toma solo los primeros 5 bits
         size = key[0] & 0x1F;
         
-        //siguiente 4 bytes: estado inicial (formato little-endian)
+        //Siguiente 4 bytes: estado inicial (formato little-endian)
+        //Little-endian significa: byte más pequeño primero
+        //Tomamos 4 bytes y los juntamos en un número de 32 bits
         state = ((uint32_t)key[1]) |
-                ((uint32_t)key[2] << 8) |
-                ((uint32_t)key[3] << 16) |
-                ((uint32_t)key[4] << 24);
+                ((uint32_t)key[2] << 8) |  //Mueve 8 bits a la izquierda
+                ((uint32_t)key[3] << 16) | //Mueve 16 bits a la izquierda
+                ((uint32_t)key[4] << 24);  //Mueve 24 bits a la izquierda
         
-        //últimos 4 bytes: bits de realimentación
+        //Últimos 4 bytes: bits de realimentación
+        //Mismo proceso para la máscara de realimentación
         feedback = ((uint32_t)key[5]) |
                    ((uint32_t)key[6] << 8) |
                    ((uint32_t)key[7] << 16) |
@@ -74,49 +93,60 @@ private:
     }
 
 public:
-    //constructor: recibe clave de 27 bytes (9 bytes por LFSR)
+    //Constructor: recibe clave de 27 bytes (9 bytes por LFSR)
+    //27 bytes = 3 máquinas × 9 bytes cada una
     Geffe(const uint8_t* key) {
-        uint8_t size0, size1, size2;
-        uint32_t state0, state1, state2;
-        uint32_t feedback0, feedback1, feedback2;
+        uint8_t size0, size1, size2;        //Tamaños de las 3 máquinas
+        uint32_t state0, state1, state2;    //Estados iniciales
+        uint32_t feedback0, feedback1, feedback2; //Fórmulas de mezcla
         
-        //decodifica los tres grupos de 9 bytes
-        decodeLFSRKey(&key[0], size0, state0, feedback0);  //LFSR0
-        decodeLFSRKey(&key[9], size1, state1, feedback1);  //LFSR1
-        decodeLFSRKey(&key[18], size2, state2, feedback2); //LFSR2
+        //Decodifica los tres grupos de 9 bytes
+        //Cada grupo de 9 bytes configura una máquina diferente
+        decodeLFSRKey(&key[0], size0, state0, feedback0);  //LFSR0 - primera máquina
+        decodeLFSRKey(&key[9], size1, state1, feedback1);  //LFSR1 - segunda máquina
+        decodeLFSRKey(&key[18], size2, state2, feedback2); //LFSR2 - tercera máquina
         
-        //inicializa los tres LFSRs
+        //Inicializa los tres LFSRs con sus configuraciones
+        //Ahora las 3 máquinas están listas para trabajar
         lfsr0.init(state0, feedback0, size0);
         lfsr1.init(state1, feedback1, size1);
         lfsr2.init(state2, feedback2, size2);
     }
     
-    //genera el siguiente bit: Zn = (X0 ∧ X1) ⊕ (¬X0 ∧ X2)
+    //Genera el siguiente bit: Zn = (X0 ∧ X1) ⊕ (¬X0 ∧ X2)
+    //Fórmula del generador de Geffe que mezcla los 3 bits
+    //∧ = AND (y), ¬ = NOT (no), ⊕ = XOR (o exclusivo)
     bool next() {
-        bool x0 = lfsr0.next();
-        bool x1 = lfsr1.next();
-        bool x2 = lfsr2.next();
-        //fórmula del generador de Geffe
+        bool x0 = lfsr0.next(); //Pide un bit a la máquina 1
+        bool x1 = lfsr1.next(); //Pide un bit a la máquina 2
+        bool x2 = lfsr2.next(); //Pide un bit a la máquina 3
+        //Fórmula del generador de Geffe - mezcla inteligente
         return (x0 & x1) ^ (~x0 & x2);
     }
     
-    //genera un byte completo (8 bits)
+    //Genera un byte completo (8 bits)
+    //Un byte = 8 bits juntos, como una letra o número pequeño
     uint8_t nextByte() {
-        uint8_t result = 0;
+        uint8_t result = 0; //Empezamos con 00000000 (todo ceros)
         for (int i = 0; i < 8; i++) {
-            //construye byte bit a bit
+            //Construye byte bit a bit
+            //Mueve todo a la izquierda y mete el nuevo bit al final
             result = (result << 1) | (next() ? 1 : 0);
         }
-        return result;
+        return result; //Devuelve el byte completo
     }
     
-    //cifra/descifra buffer aplicando XOR con secuencia Geffe
+    //Cifra/descifra buffer aplicando XOR con secuencia Geffe
+    //Esta es la función más importante - ¡hace la magia del cifrado!
+    //XOR tiene una propiedad mágica: si lo aplicas dos veces, vuelves al original
+    //texto XOR secreto = cifrado, cifrado XOR mismo secreto = texto
     void processBuffer(uint8_t* buffer, size_t length) {
         for (size_t i = 0; i < length; i++) {
-            //XOR entre byte del buffer y byte de la secuencia
+            //XOR entre byte del buffer y byte de la secuencia Geffe
+            //Cada byte del archivo se mezcla con un byte "aleatorio"
             buffer[i] ^= nextByte();
         }
     }
 };
 
-#endif //GEFFE_GENERATOR_H
+#endif //GEFFE_GENERATOR_H - fin del archivo
