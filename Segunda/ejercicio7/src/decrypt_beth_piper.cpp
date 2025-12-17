@@ -1,10 +1,10 @@
-// desencriptador de archivos usando generador geffe
+// desencriptador de archivos usando generador beth-piper
 // procesa archivos cifrados en tarjeta sd
 
 #include <Arduino.h>
 #include <SD.h>
 #include <SPI.h>
-#include "geffe_generator.h"
+#include "beth_piper_generator.h"
 
 // configuración
 #define SD_CS_PIN 5
@@ -62,8 +62,8 @@ bool decryptFile(const char* inputFile, const char* outputFile, const uint8_t* k
         return false;
     }
     
-    // crea generador geffe con la misma clave
-    Geffe geffe(key);
+    // crea generador beth-piper con la misma clave
+    BethPiper bethPiper(key);
     
     // reserva buffer
     uint8_t* buffer = (uint8_t*)malloc(BUFFER_SIZE);
@@ -79,13 +79,13 @@ bool decryptFile(const char* inputFile, const char* outputFile, const uint8_t* k
     unsigned long startTime = millis();
     uint8_t lastProgress = 0;
     
-    Serial.println("\ndescifrando...");
+    Serial.println("\ndescifrando con beth-piper...");
     
     while (inFile.available()) {
         size_t bytesRead = inFile.read(buffer, BUFFER_SIZE);
         
         if (bytesRead > 0) {
-            geffe.processBuffer(buffer, bytesRead);
+            bethPiper.processBuffer(buffer, bytesRead);
             outFile.write(buffer, bytesRead);
             totalBytes += bytesRead;
             
@@ -158,7 +158,7 @@ void setup() {
     Serial.begin(115200);
     delay(2000);
     
-    Serial.println("\n=== desencriptador geffe esp32 ===\n");
+    Serial.println("\n=== desencriptador beth-piper esp32 ===\n");
     
     // inicializa sd
     Serial.println("inicializando sd...");
@@ -178,9 +178,9 @@ void setup() {
     // carga la clave
     Serial.println("\ncargando clave...");
     uint8_t key[27];
-    if (!loadKey("/key.txt", key)) {
+    if (!loadKey("/key_bp.txt", key)) {
         Serial.println("\nerror: no se pudo cargar la clave");
-        Serial.println("asegurate de que key.txt existe y tiene 27 bytes");
+        Serial.println("asegurate de que key_bp.txt existe y tiene 27 bytes");
         return;
     }
     
@@ -219,14 +219,14 @@ void loop() {
 }
 
 /*
- * DESENCRIPTADOR GEFFE
- * ====================
+ * DESENCRIPTADOR BETH-PIPER
+ * =========================
  * 
  * REQUISITOS:
  * -----------
- * - key.txt (27 bytes) en la SD
+ * - key_bp.txt (27 bytes) en la SD
  * - archivo.enc (archivo cifrado) en la SD
- * - mismo geffe_generator.h usado para cifrar
+ * - mismo beth_piper_generator.h usado para cifrar
  * 
  * USO:
  * ----
@@ -244,3 +244,4 @@ void loop() {
  * XOR es simétrico: cifrar = descifrar
  * Por eso el código es casi idéntico al cifrador
  */
+Claude

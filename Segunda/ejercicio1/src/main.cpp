@@ -1,53 +1,38 @@
 /* Ejercicio 1: Generador de números pseudoaleatorios con ESP32 */
 #include "SPIFFS.h"
-#include <cstdint>  // Para usar enteros de tamaño fijo como uint64_t
+#include <cstdint>
 
-
-//generador congruente  ---  xᵢ =(a*xᵢ₋₁ +c)  --  mod m
 class MiRandom {
 private:
-    uint64_t multiplicador;   //a en la formula del genrador
-    uint64_t incremento;      //c en la formula del genrador
-    uint64_t modulo;          //m en la formula del genrador
-    uint64_t estado;          //semilla
+    uint64_t multiplicador;
+    uint64_t incremento;
+    uint64_t modulo;
+    uint64_t estado;
 
 public:
-    //se llama al crear un objeto MiRandom
-    //recibe una semilla, si no hay una, es 1
-    //c y m deben ser coprimos
-    //a - 1 debe ser divisible entre todos los factores primos de m
-    //a - 1 debe ser múltiplo de 2
     MiRandom(uint64_t semilla = 1) {
-        multiplicador = 1103515245;              // valor típico usado en LCG
-        incremento = 123456;              // valor típico usado en LCG
-        modulo = (1ULL << 31);                //2^31, desplazamos un bit 31 veces
-        estado = semilla;                     // guardamos la semilla inicial
+        multiplicador = 1103515245;
+        incremento = 12345;  // Cambiado a valor estándar
+        modulo = (1ULL << 31);
+        estado = semilla;
     }
 
-    // Método para cambiar la semilla manualmente en cualquier momento
     void seed(uint64_t nuevaSemilla) {
         estado = nuevaSemilla;
     }
 
-    // Genera un número pseudoaleatorio en el rango [min, max]
     double rand(double min, double max) {
-        // Fórmula del generador congruencial lineal:
-        // Xn+1 = (a * Xn + c) mod m
         estado = (multiplicador * estado + incremento) % modulo;
-
-        // Normalizamos el resultado a un número entre 0 y 1
         double normalizado = (double)estado / (double)modulo;
-
-        
-        // Escalamos el valor al rango [min, max]
         return min + normalizado * (max - min);
     }
 };
 
-// Creamos un generador global con semilla 
+//Creamos un generador global
 MiRandom generador(903699);
 int contadorNumeros = 0;
 bool primeraRonda = true;
+bool terminado = false;  // Nueva variable para control
 
 void setup(){
     Serial.begin(115200);
@@ -55,33 +40,43 @@ void setup(){
     digitalWrite(43, HIGH);
     
     if(!SPIFFS.begin(true)){
-        Serial.println("Fail mounting FFat");
+        Serial.println("Error montando SPIFFS");
         return;
     }
     
+    delay(2000);  // Espera para que el puerto serie se estabilice
+    
     Serial.println("=== Generador de numeros pseudoaleatorios ===");
-    Serial.println("Primera tanda de numeros:");
+    Serial.println("Primera tanda de numeros (semilla 903699):");
 }
 
 void loop(){
-    // Generación de números aleatorios
+    if (terminado) {
+        return;  // No hacer nada si ya terminó
+    }
+    
     if (primeraRonda && contadorNumeros < 5) {
         double numero = generador.rand(0.0, 1.0);
-        Serial.printf("Numero aleatorio %d: %f\n", contadorNumeros + 1, numero);
+        Serial.printf("Numero aleatorio %d: %.6f\n", contadorNumeros + 1, numero);
         contadorNumeros++;
-    } else if (primeraRonda && contadorNumeros == 5) {
-        // Reiniciamos el generador con otra semilla
-        generador.seed(3102025);  // Nueva semilla
+        delay(1000);  // Espera 1 segundo entre números
+    } 
+    else if (primeraRonda && contadorNumeros == 5) {
+        generador.seed(3102025);
         Serial.println("\nSegunda tanda de numeros (con semilla 3102025):");
         primeraRonda = false;
         contadorNumeros = 0;
-    } else if (!primeraRonda && contadorNumeros < 5) {
+        delay(2000);  // Espera antes de la segunda tanda
+    } 
+    else if (!primeraRonda && contadorNumeros < 5) {
         double numero = generador.rand(0.0, 1.0);
-        Serial.printf("Numero aleatorio %d: %f\n", contadorNumeros + 1, numero);
+        Serial.printf("Numero aleatorio %d: %.6f\n", contadorNumeros + 1, numero);
         contadorNumeros++;
+        delay(1000);  // Espera 1 segundo entre números
         
         if (contadorNumeros == 5) {
             Serial.println("\n=== Generacion completa ===");
+            terminado = true;  // Marca como terminado
         }
     }
 }

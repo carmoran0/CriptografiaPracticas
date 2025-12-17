@@ -1,42 +1,69 @@
-// desencriptador de archivos usando generador geffe
-// procesa archivos cifrados en tarjeta sd
+// cifrador de archivos usando generador beth-piper
+// procesa archivos de 1mb en tarjeta sd
 
 #include <Arduino.h>
 #include <SD.h>
 #include <SPI.h>
-#include "geffe_generator.h"
+#include "beth_piper_generator.h"
 
 // configuración
 #define SD_CS_PIN 5
 #define BUFFER_SIZE 4096
 
-// carga clave desde archivo
-bool loadKey(const char* filename, uint8_t* key) {
-    if (!SD.exists(filename)) {
-        Serial.printf("error: %s no existe\n", filename);
-        return false;
-    }
-    
-    File file = SD.open(filename, FILE_READ);
+// estructura para configurar cada lfsr
+struct LFSRKey {
+    uint8_t size;
+    uint32_t state;
+    uint32_t feedback;
+};
+
+// escribe uint32 en formato little-endian
+void write32le(uint8_t* dst, uint32_t v) {
+    dst[0] = (uint8_t)(v & 0xFF);
+    dst[1] = (uint8_t)((v >> 8) & 0xFF);
+    dst[2] = (uint8_t)((v >> 16) & 0xFF);
+    dst[3] = (uint8_t)((v >> 24) & 0xFF);
+}
+
+// genera clave de 27 bytes
+void generateKey(uint8_t* key) {
+    // configuración de los tres lfsrs
+    LFSRKey k0 = { 8,  0x12345678, 0x0000001D };
+    LFSRKey k1 = { 10, 0xABCDEF01, 0x00000205 };
+    LFSRKey k2 = { 11, 0x98765432, 0x00000403 };
+
+    // lfsr0 en offset 0
+    key[0] = k0.size;
+    write32le(&key[1], k0.state);
+    write32le(&key[5], k0.feedback);
+
+    // lfsr1 en offset 9
+    key[9] = k1.size;
+    write32le(&key[10], k1.state);
+    write32le(&key[14], k1.feedback);
+
+    // lfsr2 en offset 18
+    key[18] = k2.size;
+    write32le(&key[19], k2.state);
+    write32le(&key[23], k2.feedback);
+}
+
+// guarda clave en archivo txt
+bool saveKey(const char* filename, const uint8_t* key) {
+    File file = SD.open(filename, FILE_WRITE);
     if (!file) {
-        Serial.printf("error: no se pudo abrir %s\n", filename);
+        Serial.println("error: no se pudo crear key.txt");
         return false;
     }
     
-    if (file.size() != 27) {
-        Serial.printf("error: %s debe tener 27 bytes (tiene %d)\n", filename, file.size());
-        file.close();
-        return false;
-    }
-    
-    file.read(key, 27);
+    file.write(key, 27);
     file.close();
-    Serial.printf("clave cargada desde: %s\n", filename);
+    Serial.printf("clave guardada: %s\n", filename);
     return true;
 }
 
-// descifra archivo (idéntico a cifrar, XOR es simétrico)
-bool decryptFile(const char* inputFile, const char* outputFile, const uint8_t* key) {
+// cifra archivo
+bool encryptFile(const char* inputFile, const char* outputFile, const uint8_t* key) {
     // verifica que existe el archivo
     if (!SD.exists(inputFile)) {
         Serial.printf("error: %s no existe\n", inputFile);
@@ -62,8 +89,8 @@ bool decryptFile(const char* inputFile, const char* outputFile, const uint8_t* k
         return false;
     }
     
-    // crea generador geffe con la misma clave
-    Geffe geffe(key);
+    // crea generador beth-piper
+    BethPiper bethPiper(key);
     
     // reserva buffer
     uint8_t* buffer = (uint8_t*)malloc(BUFFER_SIZE);
@@ -74,18 +101,18 @@ bool decryptFile(const char* inputFile, const char* outputFile, const uint8_t* k
         return false;
     }
     
-    // descifra archivo
+    // cifra archivo
     size_t totalBytes = 0;
     unsigned long startTime = millis();
     uint8_t lastProgress = 0;
     
-    Serial.println("\ndescifrando...");
+    Serial.println("\ncifrando con beth-piper...");
     
     while (inFile.available()) {
         size_t bytesRead = inFile.read(buffer, BUFFER_SIZE);
         
         if (bytesRead > 0) {
-            geffe.processBuffer(buffer, bytesRead);
+            bethPiper.processBuffer(buffer, bytesRead);
             outFile.write(buffer, bytesRead);
             totalBytes += bytesRead;
             
@@ -106,8 +133,8 @@ bool decryptFile(const char* inputFile, const char* outputFile, const uint8_t* k
     inFile.close();
     outFile.close();
     
-    Serial.println("\ndescifrado completado");
-    Serial.printf("archivo descifrado: %s\n", outputFile);
+    Serial.println("\ncifrado completado");
+    Serial.printf("archivo cifrado: %s\n", outputFile);
     Serial.printf("bytes procesados: %d\n", totalBytes);
     Serial.printf("tiempo: %.2f segundos\n", elapsedTime / 1000.0);
     Serial.printf("velocidad: %.2f kb/s\n", speed);
@@ -158,7 +185,7 @@ void setup() {
     Serial.begin(115200);
     delay(2000);
     
-    Serial.println("\n=== desencriptador geffe esp32 ===\n");
+    Serial.println("\n=== cifrador beth-piper esp32 ===\n");
     
     // inicializa sd
     Serial.println("inicializando sd...");
@@ -175,43 +202,62 @@ void setup() {
     Serial.printf("usado: %llu mb\n", SD.usedBytes() / (1024 * 1024));
     Serial.printf("libre: %llu mb\n", (cardSize - SD.usedBytes() / (1024 * 1024)));
     
-    // carga la clave
-    Serial.println("\ncargando clave...");
+    // verifica si ya existe una clave
     uint8_t key[27];
-    if (!loadKey("/key.txt", key)) {
-        Serial.println("\nerror: no se pudo cargar la clave");
-        Serial.println("asegurate de que key.txt existe y tiene 27 bytes");
-        return;
+    if (SD.exists("/key_bp.txt")) {
+        Serial.println("\nclave existente encontrada, cargando...");
+        File keyFile = SD.open("/key_bp.txt", FILE_READ);
+        if (keyFile && keyFile.size() == 27) {
+            keyFile.read(key, 27);
+            keyFile.close();
+            Serial.println("clave cargada desde key_bp.txt");
+        } else {
+            Serial.println("error: key_bp.txt corrupto, generando nueva clave");
+            if (keyFile) keyFile.close();
+            generateKey(key);
+            saveKey("/key_bp.txt", key);
+        }
+    } else {
+        // genera y guarda clave nueva
+        Serial.println("\ngenerando clave nueva...");
+        generateKey(key);
+        if (!saveKey("/key_bp.txt", key)) {
+            Serial.println("error al guardar clave");
+            return;
+        }
     }
     
     // lista archivos
     listFiles();
     
-    // configura archivo a descifrar (CAMBIA ESTE NOMBRE)
-    const char* inputFile = "/archivo1mb.txt.enc";
-    const char* outputFile = "/archivo1mb.txt.dec";
+    // configura archivo a cifrar (CAMBIA ESTE NOMBRE)
+    const char* inputFile = "/archivo1mb.txt";
+    const char* outputFile = "/archivo1mb.txt.enc";
     
     // verifica que existe
     if (!SD.exists(inputFile)) {
         Serial.printf("\narchivo '%s' no encontrado\n", inputFile);
         Serial.println("\ninstrucciones:");
-        Serial.println("1. verifica que el archivo cifrado este en la sd");
+        Serial.println("1. copia tu archivo de 1mb a la sd");
         Serial.println("2. cambia 'inputFile' en el codigo");
         Serial.println("3. reinicia el esp32");
     } else {
-        // descifra
-        Serial.println("\niniciando descifrado...");
+        // cifra
+        Serial.println("\niniciando cifrado...");
         delay(1000);
         
-        if (decryptFile(inputFile, outputFile, key)) {
+        if (encryptFile(inputFile, outputFile, key)) {
             Serial.println("\noperacion exitosa");
             listFiles();
-            Serial.println("\ncompara el archivo original con el descifrado");
-            Serial.println("deben ser identicos");
         } else {
-            Serial.println("\nerror durante el descifrado");
+            Serial.println("\nerror durante el cifrado");
         }
     }
+    
+    Serial.println("\npara descifrar:");
+    Serial.println("  - entrada: archivo.enc");
+    Serial.println("  - salida: archivo.dec");
+    Serial.println("  - misma clave (key_bp.txt)");
 }
 
 void loop() {
@@ -219,28 +265,26 @@ void loop() {
 }
 
 /*
- * DESENCRIPTADOR GEFFE
- * ====================
- * 
- * REQUISITOS:
- * -----------
- * - key.txt (27 bytes) en la SD
- * - archivo.enc (archivo cifrado) en la SD
- * - mismo geffe_generator.h usado para cifrar
+ * CONEXIONES SD - ESP32:
+ * ----------------------
+ * SD CS    -> GPIO 5
+ * SD MOSI  -> GPIO 23
+ * SD MISO  -> GPIO 19
+ * SD SCK   -> GPIO 18
+ * SD VCC   -> 3.3V
+ * SD GND   -> GND
  * 
  * USO:
  * ----
- * 1. conecta módulo sd con los archivos
- * 2. cambia 'inputFile' con el nombre del .enc
- * 3. compila y sube este código
- * 4. abre serial monitor (115200)
+ * 1. conecta módulo sd
+ * 2. copia archivo de 1mb a la sd
+ * 3. cambia 'inputFile' con el nombre
+ * 4. compila y sube
+ * 5. abre serial monitor (115200)
  * 
  * RESULTADO:
  * ----------
- * - archivo.dec (descifrado, idéntico al original)
- * 
- * NOTA:
- * -----
- * XOR es simétrico: cifrar = descifrar
- * Por eso el código es casi idéntico al cifrador
+ * - archivo.enc (cifrado con beth-piper)
+ * - key_bp.txt (clave)
  */
+
