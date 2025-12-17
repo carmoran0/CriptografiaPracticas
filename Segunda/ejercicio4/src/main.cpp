@@ -259,8 +259,8 @@ void setup() {
     listFiles();
     
     //nombres de archivos a usar (puedes cambiar estos nombres)
-    const char* inputFile = "/archivo1mb.txt";   //archivo original
-    const char* outputFile = "/archivo1mb.txt.enc"; //archivo cifrado
+    const char* inputFile = "/archivoOG.txt";   //archivo original
+    const char* outputFile = "/archivo.txt.enc"; //archivo cifrado
     
     //verifica que el archivo a cifrar existe
     if (!SD.exists(inputFile)) {
