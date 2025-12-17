@@ -1,39 +1,34 @@
-//cifrador de archivos usando generador geffe
-//procesa archivos de 1mb en tarjeta sd
-//Este archivo .h contiene la "receta" para crear números aleatorios con Geffe
+// este h es para el CIFRADOR DE UN ARCHIVO LLAMADO "archivoOG.txt"
+//este h sirve para generar el numero del geffe
 //Se puede usar en otros programas incluyendo este archivo
 
-#ifndef GEFFE_GENERATOR_H  //Esto evita que el archivo se incluya dos veces
-#define GEFFE_GENERATOR_H  //Si no está definido, lo define ahora
+#ifndef GEFFE_GENERATOR_H  //para evitar que el archivo se duplique
+#define GEFFE_GENERATOR_H  //por si no estaba definido
 
-#include <Arduino.h>  //Biblioteca básica para trabajar en ESP32
+#include <Arduino.h>  
 
 //==================== LFSR ====================
-//LFSR = Linear Feedback Shift Register (Registro de Desplazamiento con Realimentación Lineal)
-//Es como una máquina pequeña que genera números "casi aleatorios"
-//Funciona tomando bits de un número y mezclándolos de manera matemática
+//toma bits de un numero y los entremezcla y tal
 class LFSR {
 private:
-    uint32_t state;          //Estado actual del registro - el número que tenemos ahora
-    uint32_t feedback;       //Máscara de bits de realimentación - qué bits se mezclan
-    uint8_t size;            //Tamaño del registro en bits - cuántos bits caben (ej: 8, 10, 11)
-    uint32_t mask;           //Máscara para limitar tamaño - para no pasarse de bits
-
+    uint32_t state;          //Estado actual del registro
+    uint32_t feedback;       //Mascara de bits de realimentación - qué bits se mezclan
+    uint8_t size;            //Tamaño del registro en bits
+    uint32_t mask;           //Máscara para no pasarse de la raya con los bits
 public:
-    //Constructor por defecto - pone todo en cero al principio
+    //poner todo en cero al principio
     LFSR() : state(0), feedback(0), size(0), mask(0) {}
     
-    //Inicializa el LFSR con parámetros específicos
-    //Como darle instrucciones a la máquina para que funcione
-    void init(uint32_t initialState, uint32_t feedbackBits, uint8_t registerSize) {
-        size = registerSize;  //Guardamos el tamaño (ej: 8 bits)
-        //Aplica máscara para mantener solo bits válidos
-        //Si size=8, (1UL << 8) = 256, -1 = 255 (11111111 en binario)
-        state = initialState & ((1UL << size) - 1);
-        feedback = feedbackBits;  //Guardamos cómo se mezclan los bits
-        mask = (1UL << size) - 1; //Creamos la máscara para este tamaño
-    }
+void init(uint32_t initialState, uint32_t feedbackBits, uint8_t registerSize) {
+    size = registerSize;  //cuántos bits usamos
     
+    //mascara era el número más grande que cabe en 'size' bits
+    mask = (1 << size) - 1;  //(2^size) - 1 , se desplaza size veces hacia la derecha, y se le resta 1, ej si size 3 entonces seria 1000-1=111 el cual tiene 3 bits
+    
+    //estado inicial con el tamaño decidido
+    state = initialState & mask;
+    feedback = feedbackBits;
+}
     //Genera el siguiente bit (0 o 1) y actualiza el estado de la máquina
     //Es como pedirle a la máquina que produzca un nuevo número
     bool next() {
