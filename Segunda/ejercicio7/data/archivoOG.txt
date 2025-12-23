@@ -1,0 +1,6 @@
+Este es un archivo de prueba para el cifrador Massey-Rueppel.
+Contiene texto que será cifrado usando el generador LFSR.
+Puedes reemplazar este contenido con tus propios datos.
+Línea 4
+Línea 5
+Línea 6

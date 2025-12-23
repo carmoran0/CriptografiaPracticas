@@ -6,7 +6,8 @@
 #include <Arduino.h>
 #include <FS.h>
 #include <SPIFFS.h>
-#include "massey_rueppel_generator.h" 
+#include "massey_rueppel_generator.h"
+#include "cifrador.h" 
 
 //configuración
 #define BUFFER_SIZE 4096
@@ -115,28 +116,16 @@ bool encryptFile(const char* inputFile, const char* outputFile, const uint8_t* k
     return true;
 }
 
-void setup() {
-    Serial.begin(115200);
-    delay(2000);
-    
-    Serial.println("\ncifrador massey-rueppel esp32\n");
-    
-    Serial.println("montando SPIFFS (/data)");
-    if (!SPIFFS.begin(true)) {
-        Serial.println("error: no se pudo montar SPIFFS");
-        return;
-    }
-    Serial.println("SPIFFS montado\n");
-    
+void cifrador_run() {
     uint8_t key[27];
     
     if (SPIFFS.exists("/key_mr.txt")) {  
-        Serial.println("\nclave existente encontrada, cargando...");
+        Serial.println("clave existente encontrada, cargando...");
         File keyFile = SPIFFS.open("/key_mr.txt", FILE_READ);
         if (keyFile && keyFile.size() == 27) {
             keyFile.read(key, 27);
             keyFile.close();
-            Serial.println("clave cargada desde key_mr.txt");
+            Serial.println("clave cargada desde key_mr.txt\n");
         } else {
             Serial.println("error: key_mr.txt corrupto, generando nueva clave");
             if (keyFile) keyFile.close();
@@ -144,7 +133,7 @@ void setup() {
             saveKey("/key_mr.txt", key);
         }
     } else {
-        Serial.println("\ngenerando clave nueva...");
+        Serial.println("generando clave nueva...");
         generateKey(key);
         if (!saveKey("/key_mr.txt", key)) {
             Serial.println("error al guardar clave");
@@ -152,24 +141,20 @@ void setup() {
         }
     }
     
-    const char* inputFile = "archivoOG.txt";
+    const char* inputFile = "/archivoOG.txt";
     const char* outputFile = "/archivo.txt.enc";
     
     if (!SPIFFS.exists(inputFile)) {
-        Serial.printf("\narchivo '%s' no encontrado\n", inputFile);
-        Serial.println("\nDeberias:");
+        Serial.printf("archivo '%s' no encontrado\n", inputFile);
+        Serial.println("Deberias:");
         Serial.println("1. colocar tu archivo en la carpeta /data del proyecto");
         Serial.println("2. cambiar 'inputFile' en el codigo");
         Serial.println("3. reiniciar el esp32");
     } else {
         if (encryptFile(inputFile, outputFile, key)) {
-            Serial.println("\noperacion exitosa");
+            Serial.println("operacion exitosa");
         } else {
-            Serial.println("\nerror durante el cifrado");
+            Serial.println("error durante el cifrado");
         }
     }
-}
-
-void loop() {
-    delay(10000);
 }

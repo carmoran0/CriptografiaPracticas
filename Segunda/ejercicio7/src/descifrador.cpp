@@ -5,7 +5,8 @@
 #include <Arduino.h>
 #include <FS.h>
 #include <SPIFFS.h>
-#include "massey_rueppel_generator.h" 
+#include "massey_rueppel_generator.h"
+#include "descifrador.h" 
 //configuracion
 #define BUFFER_SIZE 4096
 
@@ -89,44 +90,28 @@ bool decryptFile(const char* inputFile, const char* outputFile, const uint8_t* k
     return true;
 }
 
-void setup() {
-    Serial.begin(115200);
-    delay(2000);
-    
-    Serial.println("\n=== desencriptador massey-rueppel esp32 ===\n");
-    
-    Serial.println("montando SPIFFS (/data)...");
-    if (!SPIFFS.begin(true)) {
-        Serial.println("error: no se pudo montar SPIFFS");
-        return;
-    }
-    Serial.println("SPIFFS montado\n");
-    
-    Serial.println("\ncargando clave...");
+void descifrador_run() {
+    Serial.println("cargando clave...");
     uint8_t key[27];
     
     if (!loadKey("/key_mr.txt", key)) {
-        Serial.println("\nerror: no se pudo cargar la clave");
+        Serial.println("error: no se pudo cargar la clave");
         Serial.println("asegurate de que key_mr.txt existe y tiene 27 bytes");
         return;
     }
     
     const char* inputFile = "/archivo.txt.enc";
-    const char* outputFile = "archivoOG.txt";
+    const char* outputFile = "/archivoOG.txt";
     
     if (!SPIFFS.exists(inputFile)) {
-        Serial.printf("\narchivo '%s' no encontrado\n", inputFile);
+        Serial.printf("archivo '%s' no encontrado\n", inputFile);
     } else {
         if (decryptFile(inputFile, outputFile, key)) {
-            Serial.println("\noperacion exitosa");
-            Serial.println("\ncompara el archivo original con el descifrado");
+            Serial.println("operacion exitosa");
+            Serial.println("compara el archivo original con el descifrado");
             Serial.println("deben ser identicos");
         } else {
-            Serial.println("\nerror durante el descifrado");
+            Serial.println("error durante el descifrado");
         }
     }
-}
-
-void loop() {
-    delay(10000);
 }
