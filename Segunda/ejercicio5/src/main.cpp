@@ -133,7 +133,7 @@ void setup() {
     }
     
     const char* inputFile = "/archivo.txt.enc";   //archivo cifrado
-    const char* outputFile = "/archivoOG.txt";  //archivo descifrado
+    const char* outputFile = "archivoOG.txt";  //archivo descifrado
     
     //verifica que el archivo cifrado existe
     if (!SPIFFS.exists(inputFile)) {

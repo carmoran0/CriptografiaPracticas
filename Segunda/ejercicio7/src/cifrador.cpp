@@ -152,7 +152,7 @@ void setup() {
         }
     }
     
-    const char* inputFile = "/archivoOG.txt";
+    const char* inputFile = "archivoOG.txt";
     const char* outputFile = "/archivo.txt.enc";
     
     if (!SPIFFS.exists(inputFile)) {

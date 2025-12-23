@@ -112,7 +112,7 @@ void setup() {
     }
     
     const char* inputFile = "/archivo.txt.enc";
-    const char* outputFile = "/archivoOG.txt";
+    const char* outputFile = "archivoOG.txt";
     
     if (!SPIFFS.exists(inputFile)) {
         Serial.printf("\narchivo '%s' no encontrado\n", inputFile);
