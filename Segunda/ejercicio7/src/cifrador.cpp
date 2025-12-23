@@ -120,7 +120,7 @@ void setup() {
     Serial.begin(115200);
     delay(2000);
     
-    Serial.println("\n=== cifrador massey-rueppel esp32 ===\n");
+    Serial.println("\ncifrador massey-rueppel esp32\n");
     
     Serial.println("inicializando sd");
     if (!SD.begin(SD_CS_PIN)) {
