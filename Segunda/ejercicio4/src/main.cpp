@@ -185,7 +185,6 @@ void setup() {
     }
    
     
-    //nombres de archivos a usar (puedes cambiar estos nombres)
     const char* inputFile = "/archivoOG.txt";   //archivo original
     const char* outputFile = "/archivo.txt.enc"; //archivo cifrado
     
