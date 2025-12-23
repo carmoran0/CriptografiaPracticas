@@ -5,8 +5,7 @@
 #include <Arduino.h>
 #include <SD.h>
 #include <SPI.h>
-#include "massey_rueppel_generator.h"  // Cambio: usar MasseyRueppel
-
+#include "massey_rueppel_generator.h" 
 //configuracion
 #define SD_CS_PIN 5
 #define BUFFER_SIZE 4096
