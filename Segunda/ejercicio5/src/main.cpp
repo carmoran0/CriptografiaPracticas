@@ -4,25 +4,24 @@
 //Usa la misma clave que se usó para cifrar - ¡sin la clave no funciona!
 
 #include <Arduino.h>      //biblioteca básica para ESP32
-#include <SD.h>          //para leer/escribir en tarjeta SD
-#include <SPI.h>         //comunicación con el módulo SD
+#include <FS.h>           //interfaz de sistema de ficheros
+#include <SPIFFS.h>       //SPIFFS (usa /data del proyecto)
 #include "geffe_generator.h" //nuestro generador de números secretos - MISMO que el cifrador
 
 //configuracion
-#define SD_CS_PIN 5      //pin donde conectamos el cable "CS" de la SD - MISMO que cifrador
 #define BUFFER_SIZE 4096 //cuántos bytes leemos de una vez (4KB) - MISMO que cifrador
 
 //carga clave desde archivo key.txt
 //Sin esta clave no podemos descifrar nada - es como la llave de una cerradura
 bool loadKey(const char* filename, uint8_t* key) {
     //Primero verificamos que el archivo de clave existe
-    if (!SD.exists(filename)) {
+    if (!SPIFFS.exists(filename)) {
         Serial.printf("error: %s no existe\n", filename);
         return false;
     }
     
     //Abrimos el archivo de clave para leerlo
-    File file = SD.open(filename, FILE_READ);
+    File file = SPIFFS.open(filename, FILE_READ);
     if (!file) {
         Serial.printf("error: no se pudo abrir %s\n", filename);
         return false;
@@ -44,12 +43,12 @@ bool loadKey(const char* filename, uint8_t* key) {
 //descifrra archivo (idéntico , XOR es simétrico)
 bool decryptFile(const char* inputFile, const char* outputFile, const uint8_t* key) {
     //verifica que existe el archivo cifrado
-    if (!SD.exists(inputFile)) {
+    if (!SPIFFS.exists(inputFile)) {
         Serial.printf("error: %s no existe\n", inputFile);
         return false;
     }
     //abre archivo de entrada
-    File inFile = SD.open(inputFile, FILE_READ);
+    File inFile = SPIFFS.open(inputFile, FILE_READ);
     if (!inFile) {
         Serial.printf("error: no se pudo abrir %s\n", inputFile);
         return false;
@@ -61,7 +60,7 @@ bool decryptFile(const char* inputFile, const char* outputFile, const uint8_t* k
     Serial.printf("tamaño: %.2f mb (%d bytes)\n", fileSize / 1048576.0, fileSize);
     
     //crea archivo de salida (el archivo descifrado .dec)
-    File outFile = SD.open(outputFile, FILE_WRITE);
+    File outFile = SPIFFS.open(outputFile, FILE_WRITE);
     if (!outFile) {
         Serial.printf("error: no se pudo crear %s\n", outputFile);
         inFile.close();
@@ -116,14 +115,13 @@ void setup() {
     
     Serial.println("\n=== desencriptador geffe esp32 ===\n");
     
-    //inicializa la tarjeta SD - MISMO proceso que el cifrador
-    Serial.println("inicializando sd...");
-    if (!SD.begin(SD_CS_PIN)) {
-        Serial.println("error: no se pudo inicializar sd");
-        Serial.println("verifica conexiones: cs=5, mosi=23, miso=19, sck=18");
+    //monta el sistema de ficheros SPIFFS (contenido viene de /data)
+    Serial.println("montando SPIFFS (/data)...");
+    if (!SPIFFS.begin(true)) {
+        Serial.println("error: no se pudo montar SPIFFS");
         return; //si falla, no podemos continuar
     }
-    Serial.println("sd montada\n");
+    Serial.println("SPIFFS montado\n");
     
     //carga la clave desde key.txt - ¡DEBE ser la misma que uso el cifrador!
     Serial.println("\ncargando clave...");
@@ -139,7 +137,7 @@ void setup() {
     const char* outputFile = "/archivoOG.txt";  //archivo descifrado
     
     //verifica que el archivo cifrado existe
-    if (!SD.exists(inputFile)) {
+    if (!SPIFFS.exists(inputFile)) {
         Serial.printf("\narchivo '%s' no encontrado\n", inputFile);
     } else {
         if (decryptFile(inputFile, outputFile, key)) {

@@ -3,21 +3,20 @@
 //fórmula: Zn = x0 ⊕ x1 ⊕ x2
 
 #include <Arduino.h>
-#include <SD.h>
-#include <SPI.h>
+#include <FS.h>
+#include <SPIFFS.h>
 #include "massey_rueppel_generator.h" 
 //configuracion
-#define SD_CS_PIN 5
 #define BUFFER_SIZE 4096
 
 //carga clave desde archivo key_mr.txt
 bool loadKey(const char* filename, uint8_t* key) {
-    if (!SD.exists(filename)) {
+    if (!SPIFFS.exists(filename)) {
         Serial.printf("error: %s no existe\n", filename);
         return false;
     }
     
-    File file = SD.open(filename, FILE_READ);
+    File file = SPIFFS.open(filename, FILE_READ);
     if (!file) {
         Serial.printf("error: no se pudo abrir %s\n", filename);
         return false;
@@ -37,12 +36,12 @@ bool loadKey(const char* filename, uint8_t* key) {
 
 //descifra archivo
 bool decryptFile(const char* inputFile, const char* outputFile, const uint8_t* key) {
-    if (!SD.exists(inputFile)) {
+    if (!SPIFFS.exists(inputFile)) {
         Serial.printf("error: %s no existe\n", inputFile);
         return false;
     }
     
-    File inFile = SD.open(inputFile, FILE_READ);
+    File inFile = SPIFFS.open(inputFile, FILE_READ);
     if (!inFile) {
         Serial.printf("error: no se pudo abrir %s\n", inputFile);
         return false;
@@ -52,7 +51,7 @@ bool decryptFile(const char* inputFile, const char* outputFile, const uint8_t* k
     Serial.printf("\narchivo: %s\n", inputFile);
     Serial.printf("tamaño: %.2f mb (%d bytes)\n", fileSize / 1048576.0, fileSize);
     
-    File outFile = SD.open(outputFile, FILE_WRITE);
+    File outFile = SPIFFS.open(outputFile, FILE_WRITE);
     if (!outFile) {
         Serial.printf("error: no se pudo crear %s\n", outputFile);
         inFile.close();
@@ -96,13 +95,12 @@ void setup() {
     
     Serial.println("\n=== desencriptador massey-rueppel esp32 ===\n");
     
-    Serial.println("inicializando sd...");
-    if (!SD.begin(SD_CS_PIN)) {
-        Serial.println("error: no se pudo inicializar sd");
-        Serial.println("verifica conexiones: cs=5, mosi=23, miso=19, sck=18");
+    Serial.println("montando SPIFFS (/data)...");
+    if (!SPIFFS.begin(true)) {
+        Serial.println("error: no se pudo montar SPIFFS");
         return;
     }
-    Serial.println("sd montada\n");
+    Serial.println("SPIFFS montado\n");
     
     Serial.println("\ncargando clave...");
     uint8_t key[27];
@@ -116,7 +114,7 @@ void setup() {
     const char* inputFile = "/archivo.txt.enc";
     const char* outputFile = "/archivoOG.txt";
     
-    if (!SD.exists(inputFile)) {
+    if (!SPIFFS.exists(inputFile)) {
         Serial.printf("\narchivo '%s' no encontrado\n", inputFile);
     } else {
         if (decryptFile(inputFile, outputFile, key)) {

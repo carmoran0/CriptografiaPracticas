@@ -4,12 +4,11 @@
 //luego puede volver a ser leído usando la misma clave secreta
 
 #include <Arduino.h>
-#include <SD.h>
-#include <SPI.h>
+#include <FS.h>
+#include <SPIFFS.h>
 #include "massey_rueppel_generator.h" 
 
 //configuración
-#define SD_CS_PIN 5
 #define BUFFER_SIZE 4096
 
 //estructura para guardar la configuración de cada generador pequeño
@@ -49,7 +48,7 @@ void generateKey(uint8_t* key) {
 
 //guarda la clave secreta en un archivo
 bool saveKey(const char* filename, const uint8_t* key) {
-    File file = SD.open(filename, FILE_WRITE);
+    File file = SPIFFS.open(filename, FILE_WRITE);
     if (!file) {
         Serial.println("error: no se pudo crear key.txt");
         return false;
@@ -63,12 +62,12 @@ bool saveKey(const char* filename, const uint8_t* key) {
 
 //función principal que cifra un archivo
 bool encryptFile(const char* inputFile, const char* outputFile, const uint8_t* key) {
-    if (!SD.exists(inputFile)) {
+    if (!SPIFFS.exists(inputFile)) {
         Serial.printf("error: %s no existe\n", inputFile);
         return false;
     }
     
-    File inFile = SD.open(inputFile, FILE_READ);
+    File inFile = SPIFFS.open(inputFile, FILE_READ);
     if (!inFile) {
         Serial.printf("error: no se pudo abrir %s\n", inputFile);
         return false;
@@ -78,7 +77,7 @@ bool encryptFile(const char* inputFile, const char* outputFile, const uint8_t* k
     Serial.printf("\narchivo: %s\n", inputFile);
     Serial.printf("tamaño: %.2f mb (%d bytes)\n", fileSize / 1048576.0, fileSize);
     
-    File outFile = SD.open(outputFile, FILE_WRITE);
+    File outFile = SPIFFS.open(outputFile, FILE_WRITE);
     if (!outFile) {
         Serial.printf("error: no se pudo crear %s\n", outputFile);
         inFile.close();
@@ -122,19 +121,18 @@ void setup() {
     
     Serial.println("\ncifrador massey-rueppel esp32\n");
     
-    Serial.println("inicializando sd");
-    if (!SD.begin(SD_CS_PIN)) {
-        Serial.println("error: no se pudo usar sd");
-        Serial.println("verifica conexiones: cs=5, mosi=23, miso=19, sck=18");
+    Serial.println("montando SPIFFS (/data)");
+    if (!SPIFFS.begin(true)) {
+        Serial.println("error: no se pudo montar SPIFFS");
         return;
     }
-    Serial.println("sd montada\n");
+    Serial.println("SPIFFS montado\n");
     
     uint8_t key[27];
     
-    if (SD.exists("/key_mr.txt")) {  
+    if (SPIFFS.exists("/key_mr.txt")) {  
         Serial.println("\nclave existente encontrada, cargando...");
-        File keyFile = SD.open("/key_mr.txt", FILE_READ);
+        File keyFile = SPIFFS.open("/key_mr.txt", FILE_READ);
         if (keyFile && keyFile.size() == 27) {
             keyFile.read(key, 27);
             keyFile.close();
@@ -157,10 +155,10 @@ void setup() {
     const char* inputFile = "/archivoOG.txt";
     const char* outputFile = "/archivo.txt.enc";
     
-    if (!SD.exists(inputFile)) {
+    if (!SPIFFS.exists(inputFile)) {
         Serial.printf("\narchivo '%s' no encontrado\n", inputFile);
         Serial.println("\nDeberias:");
-        Serial.println("1. copiar tu archivo de 1mb a la sd");
+        Serial.println("1. colocar tu archivo en la carpeta /data del proyecto");
         Serial.println("2. cambiar 'inputFile' en el codigo");
         Serial.println("3. reiniciar el esp32");
     } else {

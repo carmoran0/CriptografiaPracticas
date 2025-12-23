@@ -4,12 +4,11 @@
 //luego puede volver a ser leído usando la misma clave secreta
 
 #include <Arduino.h>      //biblioteca básica para ESP32
-#include <SD.h>          //para leer/escribir en tarjeta SD
-#include <SPI.h>         //comunicación con el módulo SD
+#include <FS.h>           //interfaz de sistema de ficheros
+#include <SPIFFS.h>       //SPIFFS (usa /data del proyecto)
 #include "geffe_generator.h" //nuestro generador de números secretos
 
 //configuración
-#define SD_CS_PIN 5      //pin donde conectamos el cable "CS" de la SD
 #define BUFFER_SIZE 4096 //cuántos bytes leemos de una vez (4KB)
 
 //estructura para guardar la configuración de cada generador pequeño 
@@ -56,7 +55,7 @@ void generateKey(uint8_t* key) {
 //guarda la clave secreta en un archivo llamado key.txt
 //esto es importante porque sin la clave no podemos descifrar
 bool saveKey(const char* filename, const uint8_t* key) {
-    File file = SD.open(filename, FILE_WRITE); //abre archivo para escribir
+    File file = SPIFFS.open(filename, FILE_WRITE); //abre archivo para escribir
     if (!file) {
         Serial.println("error: no se pudo crear key.txt");
         return false;
@@ -73,13 +72,13 @@ bool saveKey(const char* filename, const uint8_t* key) {
 //toma un archivo normal y lo convierte en secreto
 bool encryptFile(const char* inputFile, const char* outputFile, const uint8_t* key) {
     //primero verifica que el archivo original existe
-    if (!SD.exists(inputFile)) {
+    if (!SPIFFS.exists(inputFile)) {
         Serial.printf("error: %s no existe\n", inputFile);
         return false;
     }
     
     //abre el archivo original para leerlo
-    File inFile = SD.open(inputFile, FILE_READ);
+    File inFile = SPIFFS.open(inputFile, FILE_READ);
     if (!inFile) {
         Serial.printf("error: no se pudo abrir %s\n", inputFile);
         return false;
@@ -91,7 +90,7 @@ bool encryptFile(const char* inputFile, const char* outputFile, const uint8_t* k
     Serial.printf("tamaño: %.2f mb (%d bytes)\n", fileSize / 1048576.0, fileSize);
     
     //crea el archivo cifrado (salida)
-    File outFile = SD.open(outputFile, FILE_WRITE);
+    File outFile = SPIFFS.open(outputFile, FILE_WRITE);
     if (!outFile) {
         Serial.printf("error: no se pudo crear %s\n", outputFile);
         inFile.close();
@@ -148,23 +147,22 @@ void setup() {
     
     Serial.println("\n=== cifrador geffe esp32 ===\n");
     
-    //inicializa la tarjeta SD
-    Serial.println("inicializando sd");
-    if (!SD.begin(SD_CS_PIN)) {
-        Serial.println("error: no se pudo usar sd");
-        Serial.println("verifica conexiones: cs=5, mosi=23, miso=19, sck=18");
+    //monta el sistema de ficheros SPIFFS (contenido viene de /data)
+    Serial.println("montando SPIFFS (/data)");
+    if (!SPIFFS.begin(true)) { //true: formatea si fuera necesario
+        Serial.println("error: no se pudo montar SPIFFS");
         return; //si falla, no podemos continuar
     }
-    Serial.println("sd montada\n");
+    Serial.println("SPIFFS montado\n");
     
 
     //manejo de la clave secreta
     uint8_t key[27]; //aquí guardaremos la clave de 27 bytes
     
-    if (SD.exists("/key.txt")) {
+    if (SPIFFS.exists("/key.txt")) {
         //si ya existe una clave guardada, la cargamos
         Serial.println("\nclave existente encontrada, cargando...");
-        File keyFile = SD.open("/key.txt", FILE_READ);
+        File keyFile = SPIFFS.open("/key.txt", FILE_READ);
         if (keyFile && keyFile.size() == 27) {
             keyFile.read(key, 27); //lee la clave del archivo
             keyFile.close();
@@ -192,10 +190,10 @@ void setup() {
     const char* outputFile = "/archivo.txt.enc"; //archivo cifrado
     
     //verifica que el archivo a cifrar existe
-    if (!SD.exists(inputFile)) {
+    if (!SPIFFS.exists(inputFile)) {
         Serial.printf("\narchivo '%s' no encontrado\n", inputFile);
         Serial.println("\nDeberias:");
-        Serial.println("1. copiar tu archivo de 1mb a la sd");
+        Serial.println("1. colocar tu archivo en la carpeta /data del proyecto");
         Serial.println("2. cambiar 'inputFile' en el codigo");
         Serial.println("3. reiniciar el esp32");
     } else {
