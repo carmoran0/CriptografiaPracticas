@@ -1,66 +1,58 @@
-//desencriptador de archivos usando generador geffe
+//desencriptador de archivos usando generador massey-rueppel
 //procesa archivos cifrados en tarjeta sd
-//Este programa toma un archivo cifrado y lo vuelve a su forma original
-//Usa la misma clave que se usó para cifrar - ¡sin la clave no funciona!
+//fórmula: Zn = x0 ⊕ x1 ⊕ x2
 
-#include <Arduino.h>      //biblioteca básica para ESP32
-#include <SD.h>          //para leer/escribir en tarjeta SD
-#include <SPI.h>         //comunicación con el módulo SD
-#include "geffe_generator.h" //nuestro generador de números secretos - MISMO que el cifrador
+#include <Arduino.h>
+#include <SD.h>
+#include <SPI.h>
+#include "massey_rueppel_generator.h"  // Cambio: usar MasseyRueppel
 
 //configuracion
-#define SD_CS_PIN 5      //pin donde conectamos el cable "CS" de la SD - MISMO que cifrador
-#define BUFFER_SIZE 4096 //cuántos bytes leemos de una vez (4KB) - MISMO que cifrador
+#define SD_CS_PIN 5
+#define BUFFER_SIZE 4096
 
-//carga clave desde archivo key.txt
-//Sin esta clave no podemos descifrar nada - es como la llave de una cerradura
+//carga clave desde archivo key_mr.txt
 bool loadKey(const char* filename, uint8_t* key) {
-    //Primero verificamos que el archivo de clave existe
     if (!SD.exists(filename)) {
         Serial.printf("error: %s no existe\n", filename);
         return false;
     }
     
-    //Abrimos el archivo de clave para leerlo
     File file = SD.open(filename, FILE_READ);
     if (!file) {
         Serial.printf("error: no se pudo abrir %s\n", filename);
         return false;
     }
     
-    //La clave DEBE tener exactamente 27 bytes (3 LFSRs × 9 bytes cada uno)
     if (file.size() != 27) {
         Serial.printf("error: %s debe tener 27 bytes (tiene %d)\n", filename, file.size());
         file.close();
         return false;
     }
     
-    //leemos los 27 bytes de la clave
     file.read(key, 27);
     file.close();
     Serial.printf("clave cargada desde: %s\n", filename);
     return true;
 }
-//descifrra archivo (idéntico , XOR es simétrico)
+
+//descifra archivo
 bool decryptFile(const char* inputFile, const char* outputFile, const uint8_t* key) {
-    //verifica que existe el archivo cifrado
     if (!SD.exists(inputFile)) {
         Serial.printf("error: %s no existe\n", inputFile);
         return false;
     }
-    //abre archivo de entrada
+    
     File inFile = SD.open(inputFile, FILE_READ);
     if (!inFile) {
         Serial.printf("error: no se pudo abrir %s\n", inputFile);
         return false;
     }
     
-    //obtiene tamaño del archivo cifrado
     size_t fileSize = inFile.size();
     Serial.printf("\narchivo: %s\n", inputFile);
     Serial.printf("tamaño: %.2f mb (%d bytes)\n", fileSize / 1048576.0, fileSize);
     
-    //crea archivo de salida (el archivo descifrado .dec)
     File outFile = SD.open(outputFile, FILE_WRITE);
     if (!outFile) {
         Serial.printf("error: no se pudo crear %s\n", outputFile);
@@ -68,10 +60,8 @@ bool decryptFile(const char* inputFile, const char* outputFile, const uint8_t* k
         return false;
     }
     
-    //crea generador geffe con la MISMA clave que usamos para cifrar
-    Geffe geffe(key);
+    MasseyRueppel masseyRueppel(key);
     
-    //reserva memoria temporal para trabajar
     uint8_t* buffer = (uint8_t*)malloc(BUFFER_SIZE);
     if (!buffer) {
         Serial.println("error: no hay memoria suficiente");
@@ -82,63 +72,51 @@ bool decryptFile(const char* inputFile, const char* outputFile, const uint8_t* k
     
     Serial.println("\ndescifrando...");
     
-    //lee el archivo cifrado por partes hasta terminar
     while (inFile.available()) {
-        //lee un pedazo del archivo (hasta BUFFER_SIZE bytes)
         size_t bytesRead = inFile.read(buffer, BUFFER_SIZE);
         
         if (bytesRead > 0) {
-            //¡AQUÍ OCURRE LA MAGIA DEL DESCIFRADO!
-            //Aplica EXACTAMENTE la misma operación que el cifrador
-            //cifrado XOR misma_secuencia = texto_original
-            geffe.processBuffer(buffer, bytesRead);
-            
-            //escribe el resultado descifrado en el nuevo archivo
+            masseyRueppel.processBuffer(buffer, bytesRead);
             outFile.write(buffer, bytesRead);
         }
     }
     
-    //limpia todo lo que usamos
-    free(buffer);      //libera la memoria temporal
-    inFile.close();    //cierra archivo cifrado
-    outFile.close();   //cierra archivo descifrado
+    free(buffer);
+    inFile.close();
+    outFile.close();
     
-    //muestra resultados
     Serial.println("\ndescifrado completado");
     Serial.printf("archivo descifrado: %s\n", outputFile);
     
     return true;
 }
-//funcion que se ejecuta una vez al iniciar el ESP32
+
 void setup() {
-    Serial.begin(115200); //inicia comunicacion con la computadora
-    delay(2000);          //espera 2 segundos para estabilizar
+    Serial.begin(115200);
+    delay(2000);
     
-    Serial.println("\n=== desencriptador geffe esp32 ===\n");
+    Serial.println("\n=== desencriptador massey-rueppel esp32 ===\n");
     
-    //inicializa la tarjeta SD - MISMO proceso que el cifrador
     Serial.println("inicializando sd...");
     if (!SD.begin(SD_CS_PIN)) {
         Serial.println("error: no se pudo inicializar sd");
         Serial.println("verifica conexiones: cs=5, mosi=23, miso=19, sck=18");
-        return; //si falla, no podemos continuar
+        return;
     }
     Serial.println("sd montada\n");
     
-    //carga la clave desde key.txt - ¡DEBE ser la misma que uso el cifrador!
     Serial.println("\ncargando clave...");
-    uint8_t key[27]; //aquí guardaremos la clave de 27 bytes
-    if (!loadKey("/key.txt", key)) {
+    uint8_t key[27];
+    
+    if (!loadKey("/key_mr.txt", key)) {
         Serial.println("\nerror: no se pudo cargar la clave");
-        Serial.println("asegurate de que key.txt existe y tiene 27 bytes");
+        Serial.println("asegurate de que key_mr.txt existe y tiene 27 bytes");
         return;
     }
     
-    //nombres de archivos a usar (puedes cambiar estos nombres)
-    const char* inputFile = "/archivo.txt.enc";   //archivo cifrado
-    const char* outputFile = "/archivoOG.txt";  //archivo descifrado
+    const char* inputFile = "/archivo.txt.enc";
+    const char* outputFile = "/archivoOG.txt";
     
-    //verifica que el archivo cifrado existe
     if (!SD.exists(inputFile)) {
         Serial.printf("\narchivo '%s' no encontrado\n", inputFile);
     } else {
@@ -151,6 +129,7 @@ void setup() {
         }
     }
 }
+
 void loop() {
-    delay(10000); //10 s
+    delay(10000);
 }

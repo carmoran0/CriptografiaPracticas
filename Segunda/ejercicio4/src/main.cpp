@@ -12,7 +12,7 @@
 #define SD_CS_PIN 5      //pin donde conectamos el cable "CS" de la SD
 #define BUFFER_SIZE 4096 //cuántos bytes leemos de una vez (4KB)
 
-//estructura para guardar la configuración de cada generador pequeño (LFSR)
+//estructura para guardar la configuración de cada generador pequeño 
 //pensemos en esto como una receta para crear números aleatorios
 struct LFSRKey {
     uint8_t size;        //cuántos bits usa este generador (ej: 8 bits)
@@ -20,13 +20,12 @@ struct LFSRKey {
     uint32_t feedback;   //cómo se mezclan los bits para crear nuevos
 };
 
-//escribe un número grande (32 bits) en formato pequeño (little-endian)
-//esto es como escribir un número de atrás hacia adelante
+//escribe un número 4 bytes en formato little-endian
 void write32le(uint8_t* dst, uint32_t v) {
-    dst[0] = (uint8_t)(v & 0xFF);         //primer byte: parte más baja
+    dst[0] = (uint8_t)(v & 0xFF);         //primer byte
     dst[1] = (uint8_t)((v >> 8) & 0xFF);  //segundo byte
     dst[2] = (uint8_t)((v >> 16) & 0xFF); //tercer byte
-    dst[3] = (uint8_t)((v >> 24) & 0xFF); //cuarto byte: parte más alta
+    dst[3] = (uint8_t)((v >> 24) & 0xFF); //cuarto byte
 }
 
 //crea una clave secreta de 27 bytes para el cifrado
@@ -68,6 +67,7 @@ bool saveKey(const char* filename, const uint8_t* key) {
     Serial.printf("clave guardada: %s\n", filename);
     return true;
 }
+
 
 //función principal que cifra un archivo
 //toma un archivo normal y lo convierte en secreto
@@ -112,11 +112,6 @@ bool encryptFile(const char* inputFile, const char* outputFile, const uint8_t* k
         return false;
     }
     
-    //variables para medir progreso y tiempo
-    size_t totalBytes = 0;           //cuántos bytes hemos procesado
-    unsigned long startTime = millis(); //cuándo empezamos
-    uint8_t lastProgress = 0;        //último porcentaje mostrado
-    
     Serial.println("\ncifrando...");
     
     //lee el archivo por partes hasta terminar
@@ -131,20 +126,8 @@ bool encryptFile(const char* inputFile, const char* outputFile, const uint8_t* k
             
             //escribe el resultado cifrado en el nuevo archivo
             outFile.write(buffer, bytesRead);
-            totalBytes += bytesRead;
-            
-            //muestra progreso cada 10% (para saber que está avanzando)
-            uint8_t progress = (totalBytes * 100) / fileSize;
-            if (progress != lastProgress && progress % 10 == 0) {
-                Serial.printf("progreso: %d%%\n", progress);
-                lastProgress = progress;
-            }
         }
     }
-    
-    //calcula estadísticas del proceso
-    unsigned long elapsedTime = millis() - startTime;
-    float speed = (fileSize / 1024.0) / (elapsedTime / 1000.0);
     
     //limpia todo lo que usamos
     free(buffer);      //libera la memoria temporal
@@ -154,58 +137,11 @@ bool encryptFile(const char* inputFile, const char* outputFile, const uint8_t* k
     //muestra resultados
     Serial.println("\ncifrado completado");
     Serial.printf("archivo cifrado: %s\n", outputFile);
-    Serial.printf("bytes procesados: %d\n", totalBytes);
-    Serial.printf("tiempo: %.2f segundos\n", elapsedTime / 1000.0);
-    Serial.printf("velocidad: %.2f kb/s\n", speed);
     
     return true;
 }
 
-//muestra todos los archivos que hay en la tarjeta SD
-//útil para ver qué archivos podemos cifrar
-void listFiles() {
-    Serial.println("\narchivos en sd:");
-    Serial.println("--------------------------------");
-    
-    //abre el directorio raíz (donde están todos los archivos)
-    File root = SD.open("/");
-    if (!root) {
-        Serial.println("error al abrir directorio");
-        return;
-    }
-    
-    //lee archivo por archivo
-    File file = root.openNextFile();
-    int count = 0;
-    while (file) {
-        if (!file.isDirectory()) { //solo archivos, no carpetas
-            Serial.printf("  %s", file.name()); //nombre del archivo
-            
-            //agrega espacios para que quede alineado
-            int spaces = 25 - strlen(file.name());
-            for (int i = 0; i < spaces; i++) Serial.print(" ");
-            
-            //muestra tamaño en formato legible
-            size_t size = file.size();
-            if (size >= 1048576) {
-                Serial.printf("%.2f mb\n", size / 1048576.0);
-            } else if (size >= 1024) {
-                Serial.printf("%.2f kb\n", size / 1024.0);
-            } else {
-                Serial.printf("%d bytes\n", size);
-            }
-            count++;
-        }
-        file = root.openNextFile();
-    }
-    
-    if (count == 0) {
-        Serial.println("  (vacio)");
-    }
-    Serial.println("--------------------------------");
-}
 
-//función que se ejecuta una vez al iniciar el ESP32
 void setup() {
     Serial.begin(115200); //inicia comunicación con la computadora
     delay(2000);          //espera 2 segundos para estabilizar
@@ -213,20 +149,15 @@ void setup() {
     Serial.println("\n=== cifrador geffe esp32 ===\n");
     
     //inicializa la tarjeta SD
-    Serial.println("inicializando sd...");
+    Serial.println("inicializando sd");
     if (!SD.begin(SD_CS_PIN)) {
-        Serial.println("error: no se pudo inicializar sd");
+        Serial.println("error: no se pudo usar sd");
         Serial.println("verifica conexiones: cs=5, mosi=23, miso=19, sck=18");
         return; //si falla, no podemos continuar
     }
     Serial.println("sd montada\n");
     
-    //muestra información de la tarjeta SD
-    uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-    Serial.printf("capacidad: %llu mb\n", cardSize);
-    Serial.printf("usado: %llu mb\n", SD.usedBytes() / (1024 * 1024));
-    Serial.printf("libre: %llu mb\n", (cardSize - SD.usedBytes() / (1024 * 1024)));
-    
+
     //manejo de la clave secreta
     uint8_t key[27]; //aquí guardaremos la clave de 27 bytes
     
@@ -254,9 +185,7 @@ void setup() {
             return;
         }
     }
-    
-    //muestra qué archivos hay en la SD
-    listFiles();
+   
     
     //nombres de archivos a usar (puedes cambiar estos nombres)
     const char* inputFile = "/archivoOG.txt";   //archivo original
@@ -265,64 +194,20 @@ void setup() {
     //verifica que el archivo a cifrar existe
     if (!SD.exists(inputFile)) {
         Serial.printf("\narchivo '%s' no encontrado\n", inputFile);
-        Serial.println("\ninstrucciones:");
-        Serial.println("1. copia tu archivo de 1mb a la sd");
-        Serial.println("2. cambia 'inputFile' en el codigo");
-        Serial.println("3. reinicia el esp32");
+        Serial.println("\nDeberias:");
+        Serial.println("1. copiar tu archivo de 1mb a la sd");
+        Serial.println("2. cambiar 'inputFile' en el codigo");
+        Serial.println("3. reiniciar el esp32");
     } else {
-        //si existe, procede a cifrar
-        Serial.println("\niniciando cifrado...");
-        delay(1000); //pequeña pausa
         
         if (encryptFile(inputFile, outputFile, key)) {
             Serial.println("\noperacion exitosa");
-            listFiles(); //muestra archivos otra vez (ahora con el cifrado)
         } else {
             Serial.println("\nerror durante el cifrado");
         }
     }
-    
-    //instrucciones para descifrar
-    Serial.println("\npara descifrar:");
-    Serial.println("  - entrada: archivo.enc");
-    Serial.println("  - salida: archivo.dec");
-    Serial.println("  - misma clave (key.txt)");
 }
 
-//función que se repite una y otra vez
-//en este programa no hacemos nada en el loop
 void loop() {
     delay(10000); //espera 10 segundos
 }
-
-/*
- * CÓMO CONECTAR TODO:
- * ----------------------
- * Tarjeta SD -> ESP32:
- * CS   (chip select) -> GPIO 5
- * MOSI (data in)     -> GPIO 23
- * MISO (data out)    -> GPIO 19
- * SCK  (clock)       -> GPIO 18
- * VCC  (power)       -> 3.3V
- * GND  (ground)      -> GND
- * 
- * CÓMO USAR ESTE PROGRAMA:
- * ------------------------
- * 1. Conecta el módulo SD al ESP32 como se indica arriba
- * 2. Copia un archivo de 1MB a la tarjeta SD (desde tu computadora)
- * 3. Cambia 'inputFile' en el código con el nombre de tu archivo
- * 4. Compila y sube el código al ESP32
- * 5. Abre el Serial Monitor (115200 baudios)
- * 
- * QUÉ OBTENDRÁS:
- * --------------
- * - Un archivo .enc (tu archivo cifrado, ilegible)
- * - Un archivo key.txt (la clave para descifrar, ¡GUÁRDALA!)
- * 
- * CÓMO DESCIFRAR:
- * ---------------
- * Ejecuta el mismo programa pero intercambiando los nombres:
- * inputFile = "archivo.enc"
- * outputFile = "archivo.dec"
- * ¡Usa la MISMA clave (key.txt)!
- */

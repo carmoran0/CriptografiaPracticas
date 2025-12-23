@@ -1,6 +1,0 @@
-﻿
-// Start of question: FalseStatement
-Sist control{F}
-
-// Start of question: TrueStatement
-Ttyyuu{T}
